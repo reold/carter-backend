@@ -20,6 +20,11 @@ rooms = {}
 clients = {}
 
 
+@app.get("/")
+def root():
+    return "Welcome to Carter's Backend server!"
+
+
 @app.get("/room/new")
 async def new_room(id: str, username: str, room_name: str):
     room_id = uuid().hex
