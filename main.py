@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from asyncio import Event, Queue
 from uuid import uuid4 as uuid
 import json
+import time
 
 app = FastAPI()
 app.add_middleware(
@@ -89,6 +90,7 @@ async def broadcast_room(id: str, room_id: str, msg: str = "Hello, world!"):
                         "content": msg,
                         "username": sender["username"],
                         "id": id,
+                        "time": str(time.time()),
                     }
                 )
             )
