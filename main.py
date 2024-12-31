@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.requests import Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,7 +31,7 @@ def root():
 async def new_room(id: str, username: str, room_name: str):
     room_id = uuid().hex
     rooms[room_id] = {"owner": id, "clients": [id], "room_name": room_name}
-    clients[id] = {"messages": Queue(), "username": username}
+    clients[id] = {"messages": Queue(), "username": username, "listening": False}
 
     return {"success": True, "room_id": room_id}
 
@@ -40,8 +41,9 @@ async def join_room(id: str, room_id: str, username: str):
     if not rooms.get(room_id):
         return {"success": False, "fault": "room doesn't exist"}
 
-    rooms[room_id]["clients"].append(id)
-    clients[id] = {"messages": Queue(), "username": username}
+    if not id in rooms[room_id].clients:
+        rooms[room_id]["clients"].append(id)
+        clients[id] = {"messages": Queue(), "username": username, "listening": False}
 
     return {"success": True, "room_name": rooms[room_id]["room_name"]}
 
@@ -55,7 +57,7 @@ async def info_room(room_id: str):
 
 
 @app.get("/room/listen")
-async def listen_room(id: str):
+async def listen_room(req: Request, id: str):
 
     if not clients.get(id):
         return {"success": False, "fault": "client doesn't exist"}
@@ -65,9 +67,17 @@ async def listen_room(id: str):
     )
 
     async def make_content():
-        while run_status.is_set():
-            msg = await clients[id]["messages"].get()
-            yield f"data: {msg}\n\n"
+        clients[id]["listening"] = True
+        try:
+            while run_status.is_set():
+                msg = await clients[id]["messages"].get()
+                if await req.is_disconnected():
+                    clients[id]["listening"] = False
+                    break
+                else:
+                    yield f"data: {msg}\n\n"
+        except:
+            clients[id]["listening"] = False
 
     return StreamingResponse(make_content(), media_type="text/event-stream")
 
@@ -91,6 +101,13 @@ async def broadcast_room(id: str, room_id: str, msg: str = "Hello, world!"):
                         "username": sender["username"],
                         "id": id,
                         "time": str(time.time()),
+                        "activity": [
+                            {
+                                "username": clients.get(_cid)["username"],
+                                "active": clients.get(_cid)["listening"],
+                            }
+                            for _cid in rooms[room_id]["clients"]
+                        ],
                     }
                 )
             )
