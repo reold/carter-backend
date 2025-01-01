@@ -41,7 +41,7 @@ async def join_room(id: str, room_id: str, username: str):
     if not rooms.get(room_id):
         return {"success": False, "fault": "room doesn't exist"}
 
-    if not id in rooms[room_id].clients:
+    if not id in rooms[room_id]["clients"]:
         rooms[room_id]["clients"].append(id)
         clients[id] = {"messages": Queue(), "username": username, "listening": False}
 
